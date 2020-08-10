@@ -25,7 +25,8 @@ library(dplyr)
 library(data.table)
 library(dismo)
 library(nnet)
-#library(leaps)
+library(leaps)
+library(broom)
 #functions <- "Documents/facultad/1c2020/aprendizaje-estadistico/entrega-2/functions.R"
 #source(file=functions)
 
@@ -56,7 +57,7 @@ cov_data<- data
 cov_data$type <- NULL 
 cov_data$id <- NULL
 N <- cov(cov_data)
-setDT(melt(N))[Var1 != Var2, .SD[which.max(abs(value))], keyby=Var1]
+#setDT(melt(N))[Var1 != Var2, .SD[which.max(abs(value))], keyby=Var1]
 
 cor(cov_data)
 
@@ -83,11 +84,14 @@ apply(X = X, MARGIN = 2, FUN = var)
 pca <- prcomp(X)
 summary(pca)
 
+pca$x
 pca$rotation
 # Mg y Ca tienen coeficientes más altos 
 
 
 biplot(x = pca, scale = 0, cex = 0.6)
+biplot(x = pca, scale = 0, cex = 0.6)
+biplot(pca, choices=c(1,3), scale = 0, cex = 0.6)
 # Chequear el angulo entre Ca y Mg 
 
 prop_var <- pca$sdev^2 / sum(pca$sdev^2)
@@ -140,31 +144,114 @@ test
 
 # k = 5 kfold cv.
 kfold_val <- 5
+pca_X <- as.data.frame(pca$x[,1:5])
+pca_data <- pca_X 
+pca_data$type <- data$type
 indexes <- kfold(X, k = kfold_val)
 
-for(i in 1:kfold_val) {
-  kfold_data <- data
-  testing_set <- data[FALSE,]
+par(mfrow=c(3,3))
+for(k in 1:kfold_val) {
+  kfold_data <- pca_data
+  testing_set <- pca_data[FALSE,]
   for(j in 1:length(indexes)) {
-    if(i == indexes[j]) {
-      testing_set <- rbind(testing_set, data[j,])
+    if(k == indexes[j]) {
+      testing_set <- rbind(testing_set, pca_data[j,])
       kfold_data <- kfold_data[-j,]
     }
   }
   
-  kfold_X <- kfold_data[,1:(ncol(data)-1)]
-  ## Seleccion de modelo ## 
-  #subset_training_data <- training_data
-  #subset_training_data$isadult <- NULL
-  #fit_all = regsubsets(training_data$isadult ~ ., subset_training_data)
-  #summary(fit_all)
-  kfold_data$type_1 <- relevel(kfold_data$type, ref = "1")
-  test <- multinom(type_1 ~ ., data = kfold_data)
-  summary(test)
-  fitted(test)
-
+  kfold_X <- kfold_data[,1:(ncol(pca_data)-1)]
+  
+  #kfold_data$type_1 <- relevel(kfold_data$type, ref = "1")
+  
+  dep_variables <- names(kfold_X)
+  null_model <- multinom(type ~ 1, data = kfold_data, trace = FALSE)
+  saturated_model <- multinom(type ~ ., data = kfold_data, trace = FALSE)
+  current_model <- null_model
+  current_variables <- character()
+  best_models <- character()
+  mse_testing <- character()
+  varsum <- 0
+  for(i in 1:5) {  
+    current_pval <- 1
+    best_variable <- 0
+    for(variable in dep_variables) {
+      variables <- c(current_variables, variable)
+      formula <- as.formula(
+        paste("type",
+              paste(variables, collapse = " + "),
+              sep = '~')
+      )
+      
+      proposed_model <- multinom(formula, data = kfold_data, trace = FALSE)
+      tidy(proposed_model)
+      
+      # deviance test 
+      deviance_proposed <- deviance(proposed_model) # -2 log(p(y|tita_0))
+      deviance_current <- deviance(current_model) # -2 log(p(y|tita_1))
+      
+      delta_d <- deviance_current - deviance_proposed
+      df <- ncol(coef(proposed_model)) - ncol(coef(current_model))
+     
+      p_val <- pchisq(delta_d, df, lower.tail=FALSE)
+      if(p_val < current_pval && p_val <= 0.05) {
+        current_pval <- p_val
+        best_proposed_model <- proposed_model
+        best_variable <- variable
+      }
+    }
+    if (ncol(coef(best_proposed_model)) == ncol(coef(current_model))) {
+      print("Un mejor modelo no fue hallado")
+    } else {
+      current_model <- best_proposed_model
+      current_variables <- c(current_variables, best_variable)  
+      dep_variables <- dep_variables[dep_variables != best_variable]
+      
+      # FIT MSE #
+      fit_sum = 0
+      fitted <- best_proposed_model$fitted.values
+      for (row in 1:nrow(fitted)) {
+        col <- which.is.max(fitted[row,])
+        fitted_df <- as.data.frame(fitted)
+        fitted[row, col] <- 1 
+        fit_sum <- fit_sum + as.numeric(names(fitted_df)[col] != kfold_data$type[row])
+      }
+      
+      # AIC, Loss function for each model. 
+      pred <- predict(best_proposed_model, newdata = testing_set, "probs")
+      
+      sum = 0
+      for (row in 1:nrow(pred)) {
+        col <- which.is.max(pred[row,])
+        pred_df <- as.data.frame(pred)
+        pred[row, col] <- 1 
+        sum <- sum + as.numeric(names(pred_df)[col] != testing_set$type[row])
+      }
+      
+      
+      message("K: ", k)
+      message("AIC: ", best_proposed_model$AIC)
+      message("MSE fit: ", fit_sum/nrow(fitted))
+      message(paste(c("Modelo ", current_variables), collapse=" "))
+      message("L: ", sum/nrow(pred))
+      mse_testing <- c(mse_testing, sum/nrow(pred))
+      varsum <- varsum + 1
+    }
+  }
+  #plot(1:varsum, mse_testing)
+  message("--------------")
 }
 
+
+  # Aca ya tenemos los p-valores de la Wald test
+# The null hypothesis for all three tests is that the smaller model is the “true” 
+# model, a large test statistics indicate that the null hypothesis is false.
+# lrt, wald, scores test: https://stats.idre.ucla.edu/other/mult-pkg/faq/general/faqhow-are-the-likelihood-ratio-wald-and-lagrange-multiplier-score-tests-different-andor-similar/#:~:text=The%20Wald%20test%20works%20by,are%20simultaneously%20equal%20to%20zero.&text=After%20running%20the%20logistic%20regression,Wald%20test%20can%20be%20used.
+# wald test: https://stats.stackexchange.com/questions/60074/wald-test-for-logistic-regression
+# general: https://stats.idre.ucla.edu/r/dae/multinomial-logistic-regression/
+# deviance: https://data.princeton.edu/wws509/r/c6s2
+
+# Voy a hacer forward step regression comparando deviances y AIC.
 
 
 # Linear discriminant analysis #
