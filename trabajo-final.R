@@ -27,6 +27,7 @@ library(dismo)
 library(nnet)
 library(leaps)
 library(broom)
+library(caret)
 #functions <- "Documents/facultad/1c2020/aprendizaje-estadistico/entrega-2/functions.R"
 #source(file=functions)
 
@@ -148,8 +149,12 @@ pca_X <- as.data.frame(pca$x[,1:5])
 pca_data <- pca_X 
 pca_data$type <- data$type
 indexes <- kfold(X, k = kfold_val)
+mse_testing_values_list = character()
+mse_fit_values_list <- character()
+aic_values_list <- character()
+accuracy_testing_values_list <- character()
 
-par(mfrow=c(3,3))
+par(mfrow=c(1,1))
 for(k in 1:kfold_val) {
   kfold_data <- pca_data
   testing_set <- pca_data[FALSE,]
@@ -170,7 +175,10 @@ for(k in 1:kfold_val) {
   current_model <- null_model
   current_variables <- character()
   best_models <- character()
-  mse_testing <- character()
+  mse_testing_values <- character()
+  mse_fit_values <- character()
+  aic_values <- character()
+  accuracy_testing_values <- character()
   varsum <- 0
   for(i in 1:5) {  
     current_pval <- 1
@@ -184,13 +192,19 @@ for(k in 1:kfold_val) {
       )
       
       proposed_model <- multinom(formula, data = kfold_data, trace = FALSE)
-      tidy(proposed_model)
+      prop_model_data <- tidy(proposed_model, conf.int = TRUE, exponentiate = TRUE)
+      
+      #if (!all(prop_model_data$p.value > 0.05)) {
+      #  print("Algun modelo fallo la Wald test")
+      #  next 
+      #}
       
       # deviance test 
-      deviance_proposed <- deviance(proposed_model) # -2 log(p(y|tita_0))
-      deviance_current <- deviance(current_model) # -2 log(p(y|tita_1))
+      deviance_proposed <- deviance(proposed_model) # -2 loglik(pm)
+      deviance_current <- deviance(current_model) # -2 loglik(cm)
       
-      delta_d <- deviance_current - deviance_proposed
+      # delta_d = LR = 2(-loglik(cm) + loglik(pm)) ~ Xdf²
+      delta_d <- deviance_current - deviance_proposed 
       df <- ncol(coef(proposed_model)) - ncol(coef(current_model))
      
       p_val <- pchisq(delta_d, df, lower.tail=FALSE)
@@ -204,6 +218,7 @@ for(k in 1:kfold_val) {
       print("Un mejor modelo no fue hallado")
     } else {
       current_model <- best_proposed_model
+      print(tidy(best_proposed_model))
       current_variables <- c(current_variables, best_variable)  
       dep_variables <- dep_variables[dep_variables != best_variable]
       
@@ -217,9 +232,14 @@ for(k in 1:kfold_val) {
         fit_sum <- fit_sum + as.numeric(names(fitted_df)[col] != kfold_data$type[row])
       }
       
-      # AIC, Loss function for each model. 
+      # Predict in test set
       pred <- predict(best_proposed_model, newdata = testing_set, "probs")
       
+      # Confusion table #
+      pred_class <- predict(best_proposed_model, newdata = testing_set, "class")
+      conf_matrix <- confusionMatrix(pred_class, testing_set$type)
+      
+      # TEST MSE #
       sum = 0
       for (row in 1:nrow(pred)) {
         col <- which.is.max(pred[row,])
@@ -228,20 +248,31 @@ for(k in 1:kfold_val) {
         sum <- sum + as.numeric(names(pred_df)[col] != testing_set$type[row])
       }
       
-      
       message("K: ", k)
       message("AIC: ", best_proposed_model$AIC)
+      aic_values <- c(aic_values, best_proposed_model$AIC)
       message("MSE fit: ", fit_sum/nrow(fitted))
+      mse_fit_values <- c(mse_fit_values, fit_sum/nrow(fitted))
       message(paste(c("Modelo ", current_variables), collapse=" "))
-      message("L: ", sum/nrow(pred))
-      mse_testing <- c(mse_testing, sum/nrow(pred))
+      message("MSE testing: ", sum/nrow(pred))
+      mse_testing_values <- c(mse_testing_values, sum/nrow(pred))
+      message(paste("Overall accuracy: ", conf_matrix$overall[[1]]))
+      accuracy_testing_values <- c(accuracy_testing_values, conf_matrix$overall[[1]])
+      
       varsum <- varsum + 1
     }
   }
-  #plot(1:varsum, mse_testing)
+  mse_testing_values_list <- c(mse_testing_values_list, mse_testing_values)
+  mse_fit_values_list <- c(mse_fit_values_list, aic_values)
+  aic_values_list <- c(aic_values_list, mse_fit_values)
+  accuracy_testing_values_list <- c(accuracy_testing_values_list, accuracy_testing_values)
+  
   message("--------------")
 }
 
+
+plot(1:varsum, mse_testing_values, main = paste("MSE Testing values ( K = ",k, ")"), 
+     xlab = "Cantidad de parametros", ylab = "MSE", col = 'chocolate')
 
   # Aca ya tenemos los p-valores de la Wald test
 # The null hypothesis for all three tests is that the smaller model is the “true” 
