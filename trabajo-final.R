@@ -32,7 +32,7 @@ library(Hmisc)
 library(effects)
 functions <- "Documents/facultad/aprendizaje-estadistico/trabajo-final/functions.R"
 source(file=functions)
-
+dir <- "Documents/facultad/aprendizaje-estadistico/trabajo-final"
 ## -- Data -- ##
 path <- "Documents/facultad/aprendizaje-estadistico/trabajo-final/vidrio.txt"
 data <- read.csv(file = path, header = FALSE)
@@ -51,6 +51,8 @@ data <- data[,2:(ncol(data))]
 ## Data exploration ## 
 data_description <- describe(data)
 
+data_description
+
 hist(data$RI, col = 'skyblue3', main = "RI", xlab = "RI values")
 hist(data$Na, col = 'skyblue3', main = "Na", xlab = "Na values")
 hist(data$Mg, col = 'skyblue3', main = "Mg", xlab = "Mg values")
@@ -61,17 +63,16 @@ hist(data$Ca, col = 'skyblue3', main = "Ca", xlab = "Ca values")
 hist(data$Ba, col = 'skyblue3', main = "Ba", xlab = "Ba values")
 hist(data$Fe, col = 'skyblue3', main = "Fe", xlab = "Fe values")
 
-pairs_data <- data[,2:ncol(data)]
-ggpairs(pairs_data, aes(colour = as.factor(data$type), alpha = 0.4))
+ggplot(data, aes(type)) + geom_bar(aes(fill = type, alpha = 0.4))
 
-cov_data<- data
+cov_data <- data
 cov_data$type <- NULL 
 cov_data$id <- NULL
-N <- cov(cov_data)
-#setDT(melt(N))[Var1 != Var2, .SD[which.max(abs(value))], keyby=Var1]
+N <- cor(cov_data)
+setDT(melt(N))[Var1 != Var2, .SD[which.max(abs(value))], keyby=Var1]
 
 cor_matrix <- cor(cov_data)
-
+cor_matrix
 
 
 cor_matrix[lower.tri(cor_matrix)] <- NA
@@ -85,38 +86,41 @@ ggheatmap <- ggplot(data = heatmap_cor, aes(Var2, Var1, fill = value)) + geom_ti
                                    size = 9, hjust = 1)) + coord_fixed()
 
 ggheatmap + 
-geom_text(aes(Var2, Var1, label = format(round(value, 2))), color = "black", size = 3) +
-theme(
-  axis.title.x = element_blank(),
-  axis.title.y = element_blank(),
-  panel.grid.major = element_blank(),
-  panel.background = element_blank(),
-  axis.ticks = element_blank(),
-  legend.justification = c(1,0),
-  legend.position = c(0.5, 0.7),
-  legend.direction = "horizontal") +
+  geom_text(aes(Var2, Var1, label = format(round(value, 2))), color = "black", size = 3) +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.background = element_blank(),
+    axis.ticks = element_blank(),
+    legend.justification = c(1,0),
+    legend.position = c(0.5, 0.7),
+    legend.direction = "horizontal") +
   guides(fill = guide_colorbar(barwidth = 7, barheight = 1,
-         title.position = "top", title.hjust = 0.5))
+                               title.position = "top", title.hjust = 0.5))
+pairs_data <- data[,2:(ncol(data)-1)]
+ggpairs(pairs_data, aes(colour = as.factor(data$type), alpha = 0.4))
 
-draw_boxplot(data, data$RI, data$type)
-draw_boxplot(data, data$Na, data$type)
-draw_boxplot(data, data$Mg, data$type)
-draw_boxplot(data, data$Al, data$type)
-draw_boxplot(data, data$Si, data$type)
-draw_boxplot(data, data$K, data$type)
-draw_boxplot(data, data$Ca, data$type)
-draw_boxplot(data, data$Ba, data$type)
-draw_boxplot(data, data$Fe, data$type)
 
-ggplot(data, aes(type)) + geom_bar(aes(fill = type, alpha = 0.4))
+
+draw_boxplot(data, data$RI, data$type, 'RI')
+draw_boxplot(data, data$Na, data$type, 'Na')
+draw_boxplot(data, data$Mg, data$type, 'Mg')
+draw_boxplot(data, data$Al, data$type, 'Al')
+draw_boxplot(data, data$Si, data$type, 'Si')
+draw_boxplot(data, data$K, data$type, 'K')
+draw_boxplot(data, data$Ca, data$type, 'Ca')
+draw_boxplot(data, data$Ba, data$type, 'Ba')
+draw_boxplot(data, data$Fe, data$type, 'Fe')
 
 apply(X = X, MARGIN = 2, FUN = mean)
 apply(X = X, MARGIN = 2, FUN = var)
 ## --------------------------- ##
 
-# Outlier via Turkey hunting
+# Outlier via Tukey method
 outlier_indexes <- get_outlier_indexes(data)
-values <- hist(as.numeric(outlier_indexes), breaks = nrow(data), col = 'skyblue3')
+values <- hist(as.numeric(outlier_indexes), breaks = nrow(data), col = 'skyblue3', xlab = "Indices de outliers",
+               main = "Histograma de outliers en muestras")
 #line(x = 1:nrow(data), y = rep(2, nrow(data)))
 data_outlier_indexes <- character()
 for (idx in outlier_indexes) {
@@ -125,10 +129,16 @@ for (idx in outlier_indexes) {
   }
 }
 
+data_outlier_indexes
+
 for (outlier_idx in as.numeric(data_outlier_indexes)) {
   X <- X[-outlier_idx,]
   data <- data[-outlier_idx,]
 }
+
+ggplot(data, aes(type)) + geom_bar(aes(fill = type, alpha = 0.4))
+describe(data)
+
 ## -- ##
 
 ## -- PCA -- ##
@@ -142,7 +152,7 @@ pca$rotation
 
 biplot(x = pca, scale = 0, cex = 0.6)
 biplot(x = pca, scale = 0, cex = 0.6)
-biplot(pca, choices=c(1,3), scale = 0, cex = 0.6)
+biplot(pca, choices=c(2,3), scale = 0, cex = 0.6)
 
 # Chequear el angulo entre Ca y Mg 
 
@@ -196,7 +206,7 @@ test
 
 
 # N-k fold cv
-N = 100
+N = 200
 error_prediction_values <- numeric()
 error_fit_values <- numeric()
 aic_values <- numeric()
@@ -282,11 +292,6 @@ for (n in 1:N) {
         #prop_model_data <- tidy(best_proposed_model, conf.int = TRUE, exponentiate = TRUE)
         current_variables <- c(current_variables, best_variable)  
         dep_variables <- dep_variables[dep_variables != best_variable]
- 
-        #eff <- Effect("PC1", best_proposed_model)
-        #data.frame(eff$model.matrix, eff$prob, eff$lower.prob, eff$upper.prob)
-        #plot(eff)
-        #plot(allEffects(best_proposed_model))
         
         # FIT error #
         fit_sum = 0
@@ -307,26 +312,43 @@ for (n in 1:N) {
         
         # Predict in test set
         pred <- predict(best_proposed_model, newdata = testing_set, "probs")
-        
+        pred
+        nrow(pred)
         # Confusion table #
         pred_class <- predict(best_proposed_model, newdata = testing_set, "class")
         conf_matrix <- confusionMatrix(pred_class, testing_set$type)
         
         # TEST error #
         sum = 0
-        for (row in 1:nrow(pred)) {
-          col <- which.is.max(pred[row,])
-          pred_df <- as.data.frame(pred)
-          pred[row, col] <- 1 
-          sum <- sum + as.numeric(names(pred_df)[col] != testing_set$type[row])
+        if (is.null(nrow(pred))) {
+          # LOO-CV
+          col <- which.is.max(pred)
+          pred_df <- as.data.frame(t(pred))
+          sum <- sum + as.numeric(names(pred_df)[col] != testing_set$type)
+          
+          # Wilson score confidence interval
+          z = 1.96 # 0.95 conf int
+          error_prediction <- sum / 1
+          interval <- z * sqrt( (error_prediction * (1 - error_prediction)) / 1)
+          error_prediction_upper <- error_prediction + interval 
+          error_prediction_lower <- error_prediction - interval 
+        } else {
+          for (row in 1:nrow(pred)) {
+            col <- which.is.max(pred[row,])
+            pred_df <- as.data.frame(pred)
+            pred[row, col] <- 1 
+            sum <- sum + as.numeric(names(pred_df)[col] != testing_set$type[row])
+          }
+          # Wilson score confidence interval
+          z = 1.96 # 0.95 conf int
+          error_prediction <- sum / nrow(pred)
+          interval <- z * sqrt( (error_prediction * (1 - error_prediction)) / nrow(pred))
+          error_prediction_upper <- error_prediction + interval 
+          error_prediction_lower <- error_prediction - interval 
         }
         
-        # Wilson score confidence interval
-        z = 1.96 # 0.95 conf int
-        error_prediction <- sum / nrow(pred)
-        interval <- z * sqrt( (error_prediction * (1 - error_prediction)) / nrow(pred))
-        error_prediction_upper <- error_prediction + interval 
-        error_prediction_lower <- error_prediction - interval 
+        
+        
         
         #message("N: ", n)
         n_values <- c(n_values, n)
@@ -358,7 +380,6 @@ for (n in 1:N) {
         varsum <- varsum + 1
       }
     }
-    message("--------------")
   }
 }
 
@@ -418,6 +439,7 @@ ACCURACY_UPPER_MEAN <- numeric()
 ACCURACY_LOWER_MEAN <- numeric()
 AIC <- numeric()
 N_PARAMS <- numeric()
+MODEL_LEN <- numeric()
 model_names <- character()
 for (model_name in names(models_list)) {
   model <- models_list[[ model_name ]]
@@ -432,11 +454,13 @@ for (model_name in names(models_list)) {
   ACCURACY_LOWER_MEAN <- c(ACCURACY_LOWER_MEAN, mean(model$ACCURACY_LOWER))
   AIC <- c(AIC, mean(model$AIC))
   N_PARAMS <- c(N_PARAMS, model$n_params[1])
+  MODEL_LEN <- c(MODEL_LEN, nrow(model))
   model_names <- c(model_names, model_name)
   #models_list[[ model_name ]] <- model
 }
 
-average_models <- data.frame(model_name = model_names, n_params = N_PARAMS, FIT_ERROR_MEAN = FIT_ERROR_MEAN,
+average_models <- data.frame(model_name = model_names, n_params = N_PARAMS, model_length = MODEL_LEN,
+                             FIT_ERROR_MEAN = FIT_ERROR_MEAN,
                              FIT_ERROR_UPPER_MEAN = FIT_ERROR_UPPER_MEAN, FIT_ERROR_LOWER_MEAN = FIT_ERROR_LOWER_MEAN,
                              PREDICTION_ERROR_MEAN = PREDICTION_ERROR_MEAN,
                              PREDICTION_ERROR_LOWER_MEAN = PREDICTION_ERROR_LOWER_MEAN,
@@ -444,33 +468,83 @@ average_models <- data.frame(model_name = model_names, n_params = N_PARAMS, FIT_
                              ACCURACY_MEAN = ACCURACY_MEAN, ACCURACY_UPPER_MEAN = ACCURACY_UPPER_MEAN,
                              ACCURACY_LOWER_MEAN = ACCURACY_LOWER_MEAN, AIC = AIC, stringsAsFactors = FALSE)
 
-x <- 1:length(models_list)
+# for cv comparison # 
+
+# Only once, for writing # 
+#write.csv(cv_five, 'Documents/facultad/aprendizaje-estadistico/trabajo-final/MLR-cv-five.csv')
+#write.csv(cv_ten, 'Documents/facultad/aprendizaje-estadistico/trabajo-final/MLR-cv-ten.csv')
+#write.csv(cv_loo, 'Documents/facultad/aprendizaje-estadistico/trabajo-final/MLR-cv-loo.csv')
+
+cv_five <- read.csv('Documents/facultad/aprendizaje-estadistico/trabajo-final/MLR-cv-five.csv')
+cv_ten <- read.csv('Documents/facultad/aprendizaje-estadistico/trabajo-final/MLR-cv-ten.csv')
+cv_loo <- read.csv('Documents/facultad/aprendizaje-estadistico/trabajo-final/MLR-cv-loo.csv')
+cv_five_signif <- dplyr::filter(cv_five, model_length > 500)
+cv_ten_signif <- dplyr::filter(cv_ten, model_length > 500)
+cv_loo_signif <- dplyr::filter(cv_loo, model_length > 500)
+
+cv_x <- 1:5 
+plot(cv_x, cv_five_signif$FIT_ERROR_MEAN, xlab = "Model complexity", ylab = "Fit error mean",
+     pch=21, cex=2, col='blue',  main = "Fit misslcassification error")
+points(cv_x, cv_ten_signif$FIT_ERROR_MEAN, col = 'red', pch = 22)
+points(cv_x, cv_loo_signif$FIT_ERROR_MEAN, col = 'green', pch = 24)
+legend("topright", c("k = 5", "k = 10", "LOO"),
+  col = c("blue", "red", "green"), pch = c(21, 22, 24))
+
+plot(cv_x, cv_five_signif$PREDICTION_ERROR_MEAN, xlab = "Model complexity", ylab = "Fit error mean",
+     pch=21, cex=2, col='blue', main = "Prediction missclassification error")
+points(cv_x, cv_ten_signif$PREDICTION_ERROR_MEAN, col = 'red', pch = 22)
+points(cv_x, cv_loo_signif$PREDICTION_ERROR_MEAN, col = 'green', pch = 24)
+legend("topright", c("k = 5", "k = 10", "LOO"),
+       col = c("blue", "red", "green"), pch = c(21, 22, 24))
+
+plot(cv_x, cv_five_signif$ACCURACY_MEAN, xlab = "Model complexity", ylab = "Fit error mean",
+     pch=21, cex=2, col='blue',  main = "Accuracy")
+points(cv_x, cv_ten_signif$ACCURACY_MEAN, col = 'red', pch = 22)
+points(cv_x, cv_loo_signif$ACCURACY_MEAN, col = 'green', pch = 24)
+legend("bottomright", c("k = 5", "k = 10", "LOO"),
+       col = c("blue", "red", "green"), pch = c(21, 22, 24))
+
 #ggplot(data = average_models, aes(x=n_params, y=FIT_ERROR_MEAN)) + 
 #      geom_point(stat="identity")
 
-plot(x, FIT_ERROR_MEAN, xlab = "modelos", ylab = "Fit error mean",
-                            pch=16, cex=2, col='skyblue3', ylim = c(min(FIT_ERROR_LOWER_MEAN),max(FIT_ERROR_UPPER_MEAN)))
+average_models_signif <- dplyr::filter(average_models, model_length > 500)
+x <- 1:nrow(average_models_signif)
 
-arrows(x0=x, y0 = FIT_ERROR_LOWER_MEAN, 
-       x1=x, y1 = FIT_ERROR_UPPER_MEAN,
+plot(x, average_models_signif$FIT_ERROR_MEAN, xlab = "modelos", ylab = "Fit error mean", main = "Fit error mean",
+                            pch=16, cex=2, col='skyblue3', ylim = c(min(average_models_signif$FIT_ERROR_LOWER_MEAN),max(average_models_signif$FIT_ERROR_UPPER_MEAN)))
+
+arrows(x0=x, y0 = average_models_signif$FIT_ERROR_LOWER_MEAN, 
+       x1=x, y1 = average_models_signif$FIT_ERROR_UPPER_MEAN,
        code = 3, angle = 90, length = 0.1)
 
-plot(x, PREDICTION_ERROR_MEAN, xlab = "modelos", ylab = "Prediction error mean",
-     pch=16, cex=2, col='orange', ylim = c(min(PREDICTION_ERROR_LOWER_MEAN),max(PREDICTION_ERROR_UPPER_MEAN)))
+plot(x, average_models_signif$PREDICTION_ERROR_MEAN, xlab = "modelos", ylab = "Prediction error mean",
+     main = "Prediction error mean",
+     pch=16, cex=2, col='orange', ylim = c(min(average_models_signif$PREDICTION_ERROR_LOWER_MEAN),max(average_models_signif$PREDICTION_ERROR_UPPER_MEAN)))
 
-arrows(x0=x, y0 = PREDICTION_ERROR_LOWER_MEAN, 
-       x1=x, y1 = PREDICTION_ERROR_UPPER_MEAN,
+arrows(x0=x, y0 = average_models_signif$PREDICTION_ERROR_LOWER_MEAN, 
+       x1=x, y1 = average_models_signif$PREDICTION_ERROR_UPPER_MEAN,
        code = 3, angle = 90, length = 0.1)
 
-plot(x, ACCURACY_MEAN, xlab = "modelos", ylab = "Accuracy mean",
+plot(x, average_models_signif$ACCURACY_MEAN, main = "Accuracy mean", xlab = "modelos", ylab = "Accuracy mean",
      pch=16, cex=2, col='red', ylim = c(0, 1))
 
-arrows(x0=x, y0 = ACCURACY_LOWER_MEAN, 
-       x1=x, y1 = ACCURACY_UPPER_MEAN,
+arrows(x0=x, y0 = average_models_signif$ACCURACY_LOWER_MEAN, 
+       x1=x, y1 = average_models_signif$ACCURACY_UPPER_MEAN,
        code = 3, angle = 90, length = 0.1)
 
-plot(x, AIC, xlab = "modelos", ylab = "AIC",
+plot(x, average_models_signif$AIC, main = "AIC mean", xlab = "modelos", ylab = "AIC",
      pch=16, cex=2, col='green')
+
+# Refitear los modelos hallados #
+# Ver effect (variacion de variables dependientes, como modifican la probabilidad)
+
+#eff <- Effect("PC1", best_proposed_model)
+#data.frame(eff$model.matrix, eff$prob, eff$lower.prob, eff$upper.prob)
+#plot(eff)
+#plot(allEffects(best_proposed_model))
+
+# Ver tidy para los summary modelos, los z test etc #
+# algo mas? #
 
 # ------ # 
 

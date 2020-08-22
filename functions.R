@@ -1,9 +1,23 @@
 library(dplyr)
 
-draw_boxplot <- function(data, dep_var, indep_var) {
-  ggplot(data, aes(x=indep_var, y=dep_var)) + 
-    geom_boxplot(outlier.colour="red", outlier.shape=8,
-                 outlier.size=4, aes(fill=indep_var)) 
+draw_boxplot <- function(data, dep_var, indep_var, dep_var_legend) {
+  colorder <- c( "green", "orange", "red", "skyblue", "purple")
+  ggplot(data, aes(indep_var, dep_var)
+         ) + 
+    xlab("Type") + ylab(dep_var_legend) +
+    #geom_boxplot(outlier.colour="red", outlier.shape=8,
+    #             outlier.size=4, aes(fill=indep_var)) 
+    geom_boxplot(aes(fill=as.factor(indep_var))) + 
+    geom_point(aes(colour=as.factor(indep_var))) + 
+    scale_color_manual(breaks=colorder, # color scale (for points)
+                       values=colorder,
+                       labels=c("1","2","3","5", "7"),
+                       name="Type") +
+    scale_fill_manual(values=colorder,
+                      labels=c("1","2","3","5", "7"),
+                      name="Type") +
+    scale_x_discrete(labels=c("1","2","3","5", "7")) +
+    theme_bw()
 }
 
 get_outlier_indexes <- function(data) {
