@@ -30,9 +30,36 @@ library(broom)
 library(caret)
 library(Hmisc)
 library(effects)
+library(class)
 functions <- "Documents/facultad/aprendizaje-estadistico/trabajo-final/functions.R"
 source(file=functions)
 dir <- "Documents/facultad/aprendizaje-estadistico/trabajo-final"
+find_all_subsets <- function(N, n, vector, current_subset, collapse = "+") {
+  subset_list <- current_subset
+  if(n > 0) {
+    for (i in 1:length(vector)) {
+      subset_list <- c(subset_list, vector[i])
+      if (i < length(vector)) {
+        found_subset <- find_all_subsets(N, n-1, vector[(i+1):length(vector)], subset_list, collapse)
+        if(!is.null(found_subset)) {
+          group_list[[ as.character(N) ]]  <<- 
+            c(group_list[[ as.character(N) ]], paste(found_subset, collapse = collapse))
+        }
+        subset_list <- subset_list[-length(subset_list)]
+      } else {
+        if (length(subset_list) == N) {
+          found_subset <- subset_list
+          if(!is.null(found_subset)) {
+            group_list[[ as.character(N) ]]  <<- 
+              c(group_list[[ as.character(N) ]], paste(found_subset, collapse = collapse))
+          }
+        }
+      }
+    }
+  } else {
+    subset_list
+  }
+}
 ## -- Data -- ##
 path <- "Documents/facultad/aprendizaje-estadistico/trabajo-final/vidrio.txt"
 data <- read.csv(file = path, header = FALSE)
@@ -217,7 +244,7 @@ k_values <- numeric()
 model_values <- character()
 n_values <- numeric()
 n_params <- numeric()
-proposed_models_list <- list()
+proposed_models_list_mlr <- list()
 model_id_values <- numeric()
 error_fit_values_upper <- numeric()
 error_fit_values_lower <- numeric()
@@ -375,7 +402,7 @@ for (n in 1:N) {
         #message(Id: ", varsum)
         model_id_values <- c(model_id_values, varsum)
         
-        proposed_models_list[[ as.character(varsum) ]] <- best_proposed_model
+        proposed_models_list_mlr[[ as.character(varsum) ]] <- best_proposed_model
         
         varsum <- varsum + 1
       }
@@ -383,7 +410,7 @@ for (n in 1:N) {
   }
 }
 
-results <- data.frame(N = n_values, K = k_values, n_params = n_params, FIT_ERROR = error_fit_values,
+results_mlr <- data.frame(N = n_values, K = k_values, n_params = n_params, FIT_ERROR = error_fit_values,
                       FIT_ERROR_UPPER = error_fit_values_upper, FIT_ERROR_LOWER = error_fit_values_lower,
                       AIC = aic_values, PREDICTION_ERROR = error_prediction_values,
                       PREDICTION_ERROR_UPPER = error_prediction_values_upper,
@@ -411,19 +438,59 @@ sortby <- function(string, delimiter, ordering_vector) {
   vector
 }
 
+two_group_list <- character()
+three_group_list <- character()
+four_group_list <- character()
+five_group_list <- character()
+group_list <- list()
+group_list[[ as.character(2) ]] <- two_group_list
+group_list[[ as.character(3) ]] <- three_group_list
+group_list[[ as.character(4) ]] <- four_group_list
+group_list[[ as.character(5) ]] <- five_group_list
+vector <- c("PC1", "PC2", "PC3", "PC4", "PC5")
+subsets <- list()
 dep_variables <- names(kfold_X)
-models_list <- list()
+models_list_mlr <- list()
+find_all_subsets <- function(N, n, vector, current_subset, collapse = "+") {
+  subset_list <- current_subset
+  if(n > 0) {
+    for (i in 1:length(vector)) {
+      subset_list <- c(subset_list, vector[i])
+      if (i < length(vector)) {
+        found_subset <- find_all_subsets(N, n-1, vector[(i+1):length(vector)], subset_list, collapse)
+        if(!is.null(found_subset)) {
+          group_list[[ as.character(N) ]]  <<- 
+            c(group_list[[ as.character(N) ]], paste(found_subset, collapse = collapse))
+        }
+        subset_list <- subset_list[-length(subset_list)]
+      } else {
+        if (length(subset_list) == N) {
+          found_subset <- subset_list
+          if(!is.null(found_subset)) {
+            group_list[[ as.character(N) ]]  <<- 
+              c(group_list[[ as.character(N) ]], paste(found_subset, collapse = collapse))
+          }
+        }
+      }
+    }
+  } else {
+    subset_list
+  }
+}
 for (n_param in 1:5) {
-  model <- dplyr::filter(results, n_params == n_param)
+  model <- dplyr::filter(results_mlr, n_params == n_param)
   for (i in 1:nrow(model)) {
     string_model <- as.character(model[i,]$models)
     sorted_model <- sortby(string_model, " ", dep_variables)
     str_sorted_model <- paste(sorted_model, collapse = " ")
     model[i,]$models <- str_sorted_model
+  }
   
-    if (!(sorted_model %in% models_list)) {
-      model_data <- dplyr::filter(model, models == str_sorted_model)
-      models_list[[ str_sorted_model ]] <- model_data
+  find_all_subsets(n_param, n_param, vector, subsets, " ")
+  for(group_sorted_model in group_list[[ as.character(n_param) ]]) {
+    model_data <- dplyr::filter(model, models == group_sorted_model)
+    if (nrow(model_data) > 0) {
+      models_list_mlr[[ group_sorted_model ]] <- model_data
     }
   }
 }
@@ -441,8 +508,8 @@ AIC <- numeric()
 N_PARAMS <- numeric()
 MODEL_LEN <- numeric()
 model_names <- character()
-for (model_name in names(models_list)) {
-  model <- models_list[[ model_name ]]
+for (model_name in names(models_list_mlr)) {
+  model <- models_list_mlr[[ model_name ]]
   FIT_ERROR_MEAN <- c(FIT_ERROR_MEAN, mean(model$FIT_ERROR))
   FIT_ERROR_UPPER_MEAN <- c(FIT_ERROR_UPPER_MEAN, mean(model$FIT_ERROR_UPPER))
   FIT_ERROR_LOWER_MEAN <- c(FIT_ERROR_LOWER_MEAN, mean(model$FIT_ERROR_LOWER))
@@ -459,7 +526,7 @@ for (model_name in names(models_list)) {
   #models_list[[ model_name ]] <- model
 }
 
-average_models <- data.frame(model_name = model_names, n_params = N_PARAMS, model_length = MODEL_LEN,
+average_models_mlr <- data.frame(model_name = model_names, n_params = N_PARAMS, model_length = MODEL_LEN,
                              FIT_ERROR_MEAN = FIT_ERROR_MEAN,
                              FIT_ERROR_UPPER_MEAN = FIT_ERROR_UPPER_MEAN, FIT_ERROR_LOWER_MEAN = FIT_ERROR_LOWER_MEAN,
                              PREDICTION_ERROR_MEAN = PREDICTION_ERROR_MEAN,
@@ -467,7 +534,9 @@ average_models <- data.frame(model_name = model_names, n_params = N_PARAMS, mode
                              PREDICTION_ERROR_UPPER_MEAN = PREDICTION_ERROR_UPPER_MEAN,
                              ACCURACY_MEAN = ACCURACY_MEAN, ACCURACY_UPPER_MEAN = ACCURACY_UPPER_MEAN,
                              ACCURACY_LOWER_MEAN = ACCURACY_LOWER_MEAN, AIC = AIC, stringsAsFactors = FALSE)
-
+# Only once, for writing # 
+#write.csv(average_models_mlr, 'Documents/facultad/aprendizaje-estadistico/trabajo-final/MLR-avg-models.csv')
+average_models_mlr <- read.csv('Documents/facultad/aprendizaje-estadistico/trabajo-final/MLR-avg-models.csv')
 # for cv comparison # 
 
 # Only once, for writing # 
@@ -506,45 +575,75 @@ legend("bottomright", c("k = 5", "k = 10", "LOO"),
 
 #ggplot(data = average_models, aes(x=n_params, y=FIT_ERROR_MEAN)) + 
 #      geom_point(stat="identity")
+average_models_signif_mlr <- dplyr::filter(average_models, model_length > 500)
+x <- 1:nrow(average_models_signif_mlr)
 
-average_models_signif <- dplyr::filter(average_models, model_length > 500)
-x <- 1:nrow(average_models_signif)
+plot(x, average_models_signif_mlr$FIT_ERROR_MEAN, xlab = "modelos", ylab = "Fit error mean", main = "Fit error mean",
+                            pch=16, cex=2, col='skyblue3', ylim = c(min(average_models_signif_mlr$FIT_ERROR_LOWER_MEAN),max(average_models_signif_mlr$FIT_ERROR_UPPER_MEAN)))
 
-plot(x, average_models_signif$FIT_ERROR_MEAN, xlab = "modelos", ylab = "Fit error mean", main = "Fit error mean",
-                            pch=16, cex=2, col='skyblue3', ylim = c(min(average_models_signif$FIT_ERROR_LOWER_MEAN),max(average_models_signif$FIT_ERROR_UPPER_MEAN)))
-
-arrows(x0=x, y0 = average_models_signif$FIT_ERROR_LOWER_MEAN, 
-       x1=x, y1 = average_models_signif$FIT_ERROR_UPPER_MEAN,
+arrows(x0=x, y0 = average_models_signif_mlr$FIT_ERROR_LOWER_MEAN, 
+       x1=x, y1 = average_models_signif_mlr$FIT_ERROR_UPPER_MEAN,
        code = 3, angle = 90, length = 0.1)
 
-plot(x, average_models_signif$PREDICTION_ERROR_MEAN, xlab = "modelos", ylab = "Prediction error mean",
+plot(x, average_models_signif_mlr$PREDICTION_ERROR_MEAN, xlab = "modelos", ylab = "Prediction error mean",
      main = "Prediction error mean",
-     pch=16, cex=2, col='orange', ylim = c(min(average_models_signif$PREDICTION_ERROR_LOWER_MEAN),max(average_models_signif$PREDICTION_ERROR_UPPER_MEAN)))
+     pch=16, cex=2, col='orange', ylim = c(min(average_models_signif_mlr$PREDICTION_ERROR_LOWER_MEAN),max(average_models_signif_mlr$PREDICTION_ERROR_UPPER_MEAN)))
 
-arrows(x0=x, y0 = average_models_signif$PREDICTION_ERROR_LOWER_MEAN, 
-       x1=x, y1 = average_models_signif$PREDICTION_ERROR_UPPER_MEAN,
+arrows(x0=x, y0 = average_models_signif_mlr$PREDICTION_ERROR_LOWER_MEAN, 
+       x1=x, y1 = average_models_signif_mlr$PREDICTION_ERROR_UPPER_MEAN,
        code = 3, angle = 90, length = 0.1)
 
-plot(x, average_models_signif$ACCURACY_MEAN, main = "Accuracy mean", xlab = "modelos", ylab = "Accuracy mean",
+plot(x, average_models_signif_mlr$ACCURACY_MEAN, main = "Accuracy mean", xlab = "modelos", ylab = "Accuracy mean",
      pch=16, cex=2, col='red', ylim = c(0, 1))
 
-arrows(x0=x, y0 = average_models_signif$ACCURACY_LOWER_MEAN, 
-       x1=x, y1 = average_models_signif$ACCURACY_UPPER_MEAN,
+arrows(x0=x, y0 = average_models_signif_mlr$ACCURACY_LOWER_MEAN, 
+       x1=x, y1 = average_models_signif_mlr$ACCURACY_UPPER_MEAN,
        code = 3, angle = 90, length = 0.1)
 
-plot(x, average_models_signif$AIC, main = "AIC mean", xlab = "modelos", ylab = "AIC",
+plot(x, average_models_signif_mlr$AIC, main = "AIC mean", xlab = "modelos", ylab = "AIC",
      pch=16, cex=2, col='green')
 
-# Refitear los modelos hallados #
 # Ver effect (variacion de variables dependientes, como modifican la probabilidad)
+# Para correr una vez y sacar los datos, los ids del proposed_models_list dependen
+# de cada corrida del modelo
+model_3 <- proposed_models_list_mlr[[3]]
+summary(model_3)
+tidy(model_3, exponentiate = TRUE, conf.int = TRUE)
+eff <- Effect("PC1", model_3)
+eff <- Effect("PC2", model_3)
+eff <- Effect("PC4", model_3)
+data.frame(eff$model.matrix, eff$prob, eff$lower.prob, eff$upper.prob)
+plot(eff)
+#plot(allEffects(model_3))
 
-#eff <- Effect("PC1", best_proposed_model)
-#data.frame(eff$model.matrix, eff$prob, eff$lower.prob, eff$upper.prob)
-#plot(eff)
-#plot(allEffects(best_proposed_model))
+model_4 <- proposed_models_list_mlr[[4]]
+summary(model_4)
+tidy(model_4, exponentiate = TRUE, conf.int = TRUE)
+eff <- Effect("PC1", model_4)
+plot(eff)
+eff <- Effect("PC2", model_4)
+plot(eff)
+eff <- Effect("PC3", model_4)
+plot(eff)
+eff <- Effect("PC4", model_4)
+plot(eff)
+data.frame(eff$model.matrix, eff$prob, eff$lower.prob, eff$upper.prob)
 
-# Ver tidy para los summary modelos, los z test etc #
-# algo mas? #
+model_5 <- proposed_models_list_mlr[[1108]]
+model_5
+summary(model_5)
+print(tidy(model_5, exponentiate = TRUE, conf.int = TRUE), n = 100)
+eff <- Effect("PC1", model_5)
+plot(eff)
+eff <- Effect("PC2", model_5)
+plot(eff)
+eff <- Effect("PC3", model_5)
+plot(eff)
+eff <- Effect("PC4", model_5)
+plot(eff)
+eff <- Effect("PC5", model_5)
+plot(eff)
+data.frame(eff$model.matrix, eff$prob, eff$lower.prob, eff$upper.prob)
 
 # ------ # 
 
@@ -607,7 +706,22 @@ type3_data <- pca_data[pca_data$type == 3,]
 type5_data <- pca_data[pca_data$type == 5,] 
 type7_data <- pca_data[pca_data$type == 7,] 
 
+type_list <- list(type1_data, type2_data, type3_data, type5_data, type7_data)
 # type 1 #
+for(type_data in type_list) {
+  print(paste("Tipo: ", type_data[,ncol(type_data)][1]))
+  for (i in 1:(ncol(type_data) - 1)) {
+    col_data <- type_data[,i]
+    test <- shapiro.test(col_data)
+    col_name <- names(type_data)[i]
+    if (test$p.value < 0.05) {
+      print(paste("PV: ", test$p.value, " ", col_name, ": Data significativamente diferente de distrib. normal"))
+    } else {
+      print(paste(test$p.value,": No se puede refutar"))
+    }
+  }
+}
+
 normplot(type1_data$PC1, "PC1 QQplot", "red")
 normplot(type1_data$PC2, "PC2 QQplot", "red")
 normplot(type1_data$PC3, "PC3 QQplot", "red")
@@ -641,10 +755,31 @@ normplot(type7_data$PC2, "PC2 QQplot", "red")
 normplot(type7_data$PC3, "PC3 QQplot", "red")
 normplot(type7_data$PC4, "PC4 QQplot", "red")
 normplot(type7_data$PC5, "PC5", "red")
+
 ## ------------------ ##
 
-#N-Kfold-CV
-N = 1
+## all models ## 
+
+
+two_group_list <- character()
+three_group_list <- character()
+four_group_list <- character()
+five_group_list <- character()
+group_list <- list()
+group_list[[ as.character(2) ]] <- two_group_list
+group_list[[ as.character(3) ]] <- three_group_list
+group_list[[ as.character(4) ]] <- four_group_list
+group_list[[ as.character(5) ]] <- five_group_list
+# terminar para permutar todos los pcx (hacer funcion recursiva)# 
+
+find_all_subsets(2, 2, vector, subsets)
+find_all_subsets(3, 3, vector, subsets)
+find_all_subsets(4, 4, vector, subsets)
+find_all_subsets(5, 5, vector, subsets)
+## -- ## 
+
+# N-Kfold-CV
+N = 200
 error_prediction_values <- numeric()
 error_prediction_values_upper <- numeric()
 error_prediction_values_lower <- numeric()
@@ -658,12 +793,16 @@ k_values <- numeric()
 model_values <- character()
 n_values <- numeric()
 n_params <- numeric()
-proposed_models_list <- list()
+proposed_models_list_lda <- list()
 model_id_values <- numeric()
 varsum <- 1
 for(n in 1:N) {
   # K-fold CV
-  par(mfrow=c(1,1))
+  kfold_val <- 5
+  pca_X <- as.data.frame(pca$x[,1:5])
+  pca_data <- pca_X 
+  pca_data$type <- data$type
+  indexes <- kfold(X, k = kfold_val)
   for(k in 1:kfold_val) {
     kfold_data <- pca_data
     testing_set <- pca_data[FALSE,]
@@ -674,68 +813,89 @@ for(n in 1:N) {
       }
     }
     
-    current_variables = c("PC1", "PC2", "PC3", "PC4", "PC5")
     kfold_X <- kfold_data[,1:(ncol(pca_data)-1)]
-    
-    proposed_model <- lda(type ~ PC1 + PC2 + PC3 + PC4 + PC5, data = kfold_data)
-    
-    # FIT MSE #
-    df_fit <- data.frame(PC1 = kfold_data$PC1, PC2 = kfold_data$PC2, 
-                         PC3 = kfold_data$PC3, PC4 = kfold_data$PC4, PC5 = kfold_data$PC5)
-    L_fit <- cost_function(best_proposed_model, df_fit, kfold_data$type, FALSE, FALSE)
-    
-    # Wilson score confidence interval
-    z = 1.96 # 0.95 conf int
-    interval <- z * sqrt( (L_fit * (1 - L_fit)) / nrow(df_fit))
-    L_fit_upper <- L_fit + interval 
-    L_fit_lower <- L_fit - interval 
-    
-    # Predict in test set
-    pred <- predict(object = best_proposed_model, newdata = testing_set)
-    
-    # Confusion table #
-    pred_class <- predict(object = best_proposed_model, newdata = testing_set)$class
-    conf_matrix <- confusionMatrix(pred_class, testing_set$type)
-  
-    # TEST MSE #
-    df_test <- data.frame(PC1 = testing_set$PC1, PC2 = testing_set$PC2, 
-                          PC3 = testing_set$PC3, PC4 = testing_set$PC4, PC5 = testing_set$PC5)
-    L_test <- cost_function(best_proposed_model, df_test, testing_set$type, FALSE, FALSE)
-    
-    # Wilson score confidence interval
-    z = 1.96 # 0.95 conf int
-    interval <- z * sqrt( (L_test * (1 - L_test)) / nrow(df_test))
-    L_test_upper <- L_test + interval 
-    L_test_lower <- L_test - interval 
-    
-    #message("N: ", n)
-    n_values <- c(n_values, n)
-    #message("K: ", k)
-    k_values <- c(k_values, k)
-    n_params <- c(n_params, i)
-    #message("MSE fit: ", L_fit)
-    error_fit_values <- c(error_fit_values, L_fit)
-    error_fit_values_upper <- c(error_fit_values_upper, L_fit_upper)
-    error_fit_values_lower <- c(error_fit_values_lower, L_fit_lower)
-    #message(paste(c("Modelo ", current_variables), collapse=" "))
-    model_values <- c(model_values, paste(current_variables, collapse = " "))
-    #message("MSE testing: ", sum/nrow(pred))
-    error_prediction_values <- c(error_prediction_values, L_test)
-    error_prediction_values_upper <- c(error_prediction_values_upper, L_test_upper)
-    error_prediction_values_lower <- c(error_prediction_values_lower, L_test_lower)
-    #message(paste("Overall accuracy: ", conf_matrix$overall[[1]]))
-    accuracy_testing_values <- c(accuracy_testing_values, conf_matrix[["overall"]][["Accuracy"]])
-    accuracy_testing_values_upper <- c(accuracy_testing_values_upper, conf_matrix[["overall"]][["AccuracyUpper"]])
-    accuracy_testing_values_lower <- c(accuracy_testing_values_lower, conf_matrix[["overall"]][["AccuracyLower"]])
-    #message(Id: ", varsum)
-    model_id_values <- c(model_id_values, varsum)
-    
-    proposed_models_list[[ as.character(varsum) ]] <- proposed_model
-    message("K: ", k)
-    
-    varsum <- varsum + 1
-    
-    message("--------------")
+    for (i in 1:5) {
+      models <- group_list[[ as.character(i) ]]
+      for(model in models) {
+        current_variables <- model
+        formula <- as.formula(paste("type ~ ", model))
+        proposed_model <- lda(formula, data = kfold_data)
+        variables <- unlist(strsplit(model, "\\+"))
+        length(variables)
+        df_formula <- ""
+        for (i in 1:length(variables)) {
+          a <- paste(variables[i])
+          if(i > 1) {
+            df_formula <- paste(df_formula, ",", variables[[i]], "=kfold_data$",variables[[i]], sep = "")
+          } else {
+            df_formula <- paste(variables[[i]], "=kfold_data$",variables[[i]], sep = "")
+          }
+        }
+
+        df_fit <- parse(text=paste0("data.frame(", df_formula, ")"))
+        df_fit <- eval(df_fit)
+        L_fit <- cost_function(proposed_model, df_fit, kfold_data$type, FALSE, FALSE)
+      
+        # Wilson score confidence interval
+        z = 1.96 # 0.95 conf int
+        interval <- z * sqrt( (L_fit * (1 - L_fit)) / nrow(df_fit))
+        L_fit_upper <- L_fit + interval 
+        L_fit_lower <- L_fit - interval 
+        
+        # Predict in test set
+        pred <- predict(object = proposed_model, newdata = testing_set)
+        
+        # Confusion table #
+        pred_class <- predict(object = proposed_model, newdata = testing_set)$class
+        conf_matrix <- confusionMatrix(pred_class, testing_set$type)
+        
+        # TEST MSE #
+        df_formula <- ""
+        for (i in 1:length(variables)) {
+          a <- paste(variables[i])
+          if(i > 1) {
+            df_formula <- paste(df_formula, ",", variables[[i]], "=testing_set$",variables[[i]], sep = "")
+          } else {
+            df_formula <- paste(variables[[i]], "=testing_set$",variables[[i]], sep = "")
+          }
+        }
+        df_test <- parse(text=paste0("data.frame(", df_formula, ")"))
+        df_test <- eval(df_test)
+        L_test <- cost_function(proposed_model, df_test, testing_set$type, FALSE, FALSE)
+        
+        # Wilson score confidence interval
+        z = 1.96 # 0.95 conf int
+        interval <- z * sqrt( (L_test * (1 - L_test)) / nrow(df_test))
+        L_test_upper <- L_test + interval 
+        L_test_lower <- L_test - interval 
+        
+        #message("N: ", n)
+        n_values <- c(n_values, n)
+        #message("K: ", k)
+        k_values <- c(k_values, k)
+        n_params <- c(n_params, i)
+        #message("MSE fit: ", L_fit)
+        error_fit_values <- c(error_fit_values, L_fit)
+        error_fit_values_upper <- c(error_fit_values_upper, L_fit_upper)
+        error_fit_values_lower <- c(error_fit_values_lower, L_fit_lower)
+        #message(paste(c("Modelo ", current_variables), collapse=" "))
+        model_values <- c(model_values, paste(current_variables, collapse = " "))
+        #message("MSE testing: ", sum/nrow(pred))
+        error_prediction_values <- c(error_prediction_values, L_test)
+        error_prediction_values_upper <- c(error_prediction_values_upper, L_test_upper)
+        error_prediction_values_lower <- c(error_prediction_values_lower, L_test_lower)
+        #message(paste("Overall accuracy: ", conf_matrix$overall[[1]]))
+        accuracy_testing_values <- c(accuracy_testing_values, conf_matrix[["overall"]][["Accuracy"]])
+        accuracy_testing_values_upper <- c(accuracy_testing_values_upper, conf_matrix[["overall"]][["AccuracyUpper"]])
+        accuracy_testing_values_lower <- c(accuracy_testing_values_lower, conf_matrix[["overall"]][["AccuracyLower"]])
+        #message(Id: ", varsum)
+        model_id_values <- c(model_id_values, varsum)
+        
+        proposed_models_list_lda[[ as.character(varsum) ]] <- proposed_model
+        
+        varsum <- varsum + 1
+      }
+    }
   }
 }
 
@@ -748,65 +908,339 @@ results_lda <- data.frame(N = n_values, K = k_values, n_params = n_params, FIT_E
                       ACCURACY_LOWER = accuracy_testing_values_lower, models = model_values, 
                       model_id = model_id_values, stringsAsFactors = FALSE)
 
-
-
-# terminar para permutar todos los pcx (hacer funcion recursiva)# 
-for(i in 1:total) {
-  group <- i
-  for(j in 1:total) {
-    set <- numeric()
-    set <- c(set, j)
-    if (length(set) == group) {
-      print(set)
-      next
-    }
-    for (k in (j+1):total) {
-      if(j == total) {
-        next
-      }
-      set <- c(set, k)
-      if (length(set) == group) {
-        print(set)
-        set <- numeric()
-        set <- c(set, j)
-      } else {
-        for (z in (k + 1):total) {
-          set <- c(set, z)
-        }
-        if (length(set) == group) {
-          print(set)
-          set <- numeric()
-          set <- c(set, j)
-          set <- c(set, k)
+sortby <- function(string, delimiter, ordering_vector) {
+  vector <- strsplit(string, delimiter)
+  vector <- vector[[1]]
+  if (length(vector) > 1) {
+    for (i in 1:length(vector)) {
+      for (j in 1:(length(vector) - 1)) {
+        left <- match(vector[j], ordering_vector)
+        right <- match(vector[j + 1], ordering_vector)
+        if (left > right) {
+          dummy <- vector[j]
+          vector[j] <- vector[j + 1]
+          vector[j+1] <- dummy
         }
       }
     }
   }
+  vector
 }
-##
-# lda analisis # 
-#type1_data$type <- NULL
-#type2_data$type <- NULL
-#type3_data$type <- NULL
 
-#z_type1 <- t(best_proposed_model$scaling)%*%t(as.matrix(type1_data))
-#z_type2 <- t(best_proposed_model$scaling)%*%t(as.matrix(type2_data))
-#z_type3 <- t(best_proposed_model$scaling)%*%t(as.matrix(type3_data))
+dep_variables <- names(kfold_X)
+models_list_lda <- list()
+for (n_param in 2:5) {
+  model <- dplyr::filter(results_lda, n_params == n_param)
+  for (i in 1:nrow(model)) {
+    string_model <- as.character(model[i,]$models)
+    sorted_model <- sortby(string_model, "\\+", dep_variables)
+    str_sorted_model <- paste(sorted_model, collapse = "+")
+    model[i,]$models <- str_sorted_model
+  }
+  
+  for(group_sorted_model in group_list[[ as.character(n_param) ]]) {
+    model_data <- dplyr::filter(model, models == group_sorted_model)
+    if (nrow(model_data) > 0) {
+      models_list_lda[[ group_sorted_model ]] <- model_data
+    }
+  }
+}
 
-#plot(z_type1[1,], z_type1[2,], pch=16, col="red", xlab = "LD1", ylab = "LD2")
-#points(z_type2[1,], z_type2[2,], pch=16, col="blue")
-#points(z_type3[1,], z_type3[2,], pch=16, col="green")
+FIT_ERROR_MEAN <- numeric()
+FIT_ERROR_UPPER_MEAN <- numeric()
+FIT_ERROR_LOWER_MEAN <- numeric()
+PREDICTION_ERROR_MEAN <- numeric()
+PREDICTION_ERROR_LOWER_MEAN <- numeric()
+PREDICTION_ERROR_UPPER_MEAN <- numeric()
+ACCURACY_MEAN <- numeric()
+ACCURACY_UPPER_MEAN <- numeric()
+ACCURACY_LOWER_MEAN <- numeric()
+N_PARAMS <- numeric()
+MODEL_LEN <- numeric()
+model_names <- character()
+for (model_name in names(models_list_lda)) {
+  model <- models_list_lda[[ model_name ]]
+  FIT_ERROR_MEAN <- c(FIT_ERROR_MEAN, mean(model$FIT_ERROR))
+  FIT_ERROR_UPPER_MEAN <- c(FIT_ERROR_UPPER_MEAN, mean(model$FIT_ERROR_UPPER))
+  FIT_ERROR_LOWER_MEAN <- c(FIT_ERROR_LOWER_MEAN, mean(model$FIT_ERROR_LOWER))
+  PREDICTION_ERROR_MEAN <- c(PREDICTION_ERROR_MEAN, mean(model$PREDICTION_ERROR))
+  PREDICTION_ERROR_LOWER_MEAN <- c(PREDICTION_ERROR_LOWER_MEAN, mean(model$PREDICTION_ERROR_LOWER))
+  PREDICTION_ERROR_UPPER_MEAN <- c(PREDICTION_ERROR_UPPER_MEAN, mean(model$PREDICTION_ERROR_UPPER))
+  ACCURACY_MEAN <- c(ACCURACY_MEAN, mean(model$ACCURACY))
+  ACCURACY_UPPER_MEAN <- c(ACCURACY_UPPER_MEAN, mean(model$ACCURACY_UPPER))
+  ACCURACY_LOWER_MEAN <- c(ACCURACY_LOWER_MEAN, mean(model$ACCURACY_LOWER))
+  N_PARAMS <- c(N_PARAMS, model$n_params[1])
+  MODEL_LEN <- c(MODEL_LEN, nrow(model))
+  model_names <- c(model_names, model_name)
+  #models_list[[ model_name ]] <- model
+}
+
+average_models_lda <- data.frame(model_name = model_names, n_params = N_PARAMS, model_length = MODEL_LEN,
+                             FIT_ERROR_MEAN = FIT_ERROR_MEAN,
+                             FIT_ERROR_UPPER_MEAN = FIT_ERROR_UPPER_MEAN, FIT_ERROR_LOWER_MEAN = FIT_ERROR_LOWER_MEAN,
+                             PREDICTION_ERROR_MEAN = PREDICTION_ERROR_MEAN,
+                             PREDICTION_ERROR_LOWER_MEAN = PREDICTION_ERROR_LOWER_MEAN,
+                             PREDICTION_ERROR_UPPER_MEAN = PREDICTION_ERROR_UPPER_MEAN,
+                             ACCURACY_MEAN = ACCURACY_MEAN, ACCURACY_UPPER_MEAN = ACCURACY_UPPER_MEAN,
+                             ACCURACY_LOWER_MEAN = ACCURACY_LOWER_MEAN, stringsAsFactors = FALSE)
 
 
+# write lda model only once
+#write.csv(average_models_lda, 'Documents/facultad/aprendizaje-estadistico/trabajo-final/lda-avg-models.csv')
+average_models_lda <- read.csv('Documents/facultad/aprendizaje-estadistico/trabajo-final/lda-avg-models.csv')
+
+plot(average_models_lda$n_params, average_models_lda$FIT_ERROR_MEAN, xlab = "Model complexity", ylab = "Fit error mean", main = "Fit error mean",
+     pch=21, cex=2, col='red', ylim = c(min(average_models_lda$FIT_ERROR_MEAN),max(average_models_lda$FIT_ERROR_MEAN)))
+
+plot(average_models_lda$n_params, average_models_lda$PREDICTION_ERROR_MEAN, xlab = "Model complexity", ylab = "Prediction error mean", main = "Prediction error mean",
+     pch=21, cex=2, col='orange', ylim = c(min(average_models_lda$PREDICTION_ERROR_MEAN),max(average_models_lda$PREDICTION_ERROR_MEAN)))
+
+plot(average_models_lda$n_params, average_models_lda$ACCURACY_MEAN, xlab = "Model complexity", ylab = "Accuracy", main = "Accuracy mean",
+     pch=21, cex=2, col='darkgreen', ylim = c(min(average_models_lda$ACCURACY_MEAN),max(average_models_lda$ACCURACY_MEAN)))
+
+top_fit_lda <- average_models_lda[with(average_models_lda, order(FIT_ERROR_MEAN)),][1:5,]
+top_accuracy_lda <- average_models_lda[with(average_models_lda, order(PREDICTION_ERROR_MEAN)),][1:5,]
+top_accuracy_lda <- average_models_lda[with(average_models_lda, order(-ACCURACY_MEAN)),][1:5,]
+merge(top_fit_lda, top_accuracy_lda)
+
+merge_df <- rbind(top_fit_lda, top_accuracy_lda, top_accuracy_lda)
+merge_df <- unique(merge_df)
+
+merge_df <- merge_df[with(merge_df, order(n_params)),]
+
+x <- 1:nrow(merge_df)
+x
+plot(x, merge_df$FIT_ERROR_MEAN, xlab = "Modelos", ylab = "Fit error mean", main = "Fit error mean",
+     pch=16, cex=2, col='skyblue3', ylim = c(0,0.5))
+
+arrows(x0=x, y0 = merge_df$FIT_ERROR_LOWER_MEAN, 
+       x1=x, y1 = merge_df$FIT_ERROR_UPPER_MEAN,
+       code = 3, angle = 90, length = 0.1)
+
+plot(x, merge_df$PREDICTION_ERROR_MEAN, xlab = "Modelos", ylab = "Prediction error mean",
+     main = "Prediction error mean",
+     pch=16, cex=2, col='orange', ylim = c(0,0.6))
+
+arrows(x0=x, y0 = merge_df$PREDICTION_ERROR_LOWER_MEAN, 
+       x1=x, y1 = merge_df$PREDICTION_ERROR_UPPER_MEAN,
+       code = 3, angle = 90, length = 0.1)
+
+plot(x, merge_df$ACCURACY_MEAN, main = "Accuracy mean", xlab = "Modelos", ylab = "Accuracy mean",
+     pch=16, cex=2, col='red', ylim = c(0, 1))
+
+abline(h = merge_df$ACCURACY_MEAN[1], lty = 2)
+arrows(x0=x, y0 = merge_df$ACCURACY_LOWER_MEAN, 
+       x1=x, y1 = merge_df$ACCURACY_UPPER_MEAN,
+       code = 3, angle = 90, length = 0.1)
+
+# KNN #
+library(class)
+
+# N-Kfold-CV
+N = 200
+error_prediction_values <- numeric()
+error_prediction_values_upper <- numeric()
+error_prediction_values_lower <- numeric()
+error_fit_values <- numeric()
+error_fit_values_upper <- numeric()
+error_fit_values_lower <- numeric()
+accuracy_testing_values <- numeric()
+accuracy_testing_values_upper <- numeric()
+accuracy_testing_values_lower <- numeric()
+k_values <- numeric()
+model_values <- character()
+n_values <- numeric()
+knn_k_values <- numeric()
+knn_k <- c(1, 2, 5, 10, 25, 50, 100)
+for(n in 1:N) {
+  # K-fold CV
+  kfold_val <- 5
+  pca_X <- as.data.frame(pca$x[,1:5])
+  pca_data <- pca_X 
+  pca_data$type <- data$type
+  indexes <- kfold(X, k = kfold_val)
+  for(k in 1:kfold_val) {
+    kfold_data <- pca_data
+    testing_set <- pca_data[FALSE,]
+    for(j in 1:length(indexes)) {
+      if(k == indexes[j]) {
+        testing_set <- rbind(testing_set, pca_data[j,])
+        kfold_data <- kfold_data[-j,]
+      }
+    }
+    
+    kfold_X <- kfold_data[,1:(ncol(pca_data)-1)]
+    testing_X <- testing_set[,1:(ncol(pca_data)-1)]
+    
+    kfold_type1_data <- kfold_data[kfold_data$type == 1,] 
+    kfold_type2_data <- kfold_data[kfold_data$type == 2,] 
+    kfold_type3_data <- kfold_data[kfold_data$type == 3,] 
+    kfold_type5_data <- kfold_data[kfold_data$type == 5,] 
+    kfold_type7_data <- kfold_data[kfold_data$type == 7,] 
+    
+    testing_type1_data <- testing_set[testing_set$type == 1,] 
+    testing_type2_data <- testing_set[testing_set$type == 2,] 
+    testing_type3_data <- testing_set[testing_set$type == 3,] 
+    testing_type5_data <- testing_set[testing_set$type == 5,] 
+    testing_type7_data <- testing_set[testing_set$type == 7,] 
+
+    knn_train <- rbind(kfold_type1_data, kfold_type1_data,
+                       kfold_type3_data, kfold_type5_data,
+                       kfold_type7_data)
+    knn_test <- rbind(testing_type1_data, testing_type2_data,
+                      testing_type3_data, testing_type5_data,
+                      testing_type7_data)
+    
+    
+    for (K in knn_k) {
+      fit_model <- knn(knn_train[,1:5], knn_train[,1:5], knn_train$type, k=K)
+      test_model <- knn(knn_train[,1:5], knn_test[,1:5], knn_train$type, k=K)
+      knn_train[,1:5]
+      fit_model
+      
+      L_fit <- sum(knn_train$type != fit_model)/nrow(knn_train)
+      # Wilson score confidence interval
+      z = 1.96 # 0.95 conf int
+      interval <- z * sqrt( (L_fit * (1 - L_fit)) / nrow(knn_train))
+      L_fit_upper <- L_fit + interval 
+      L_fit_lower <- L_fit - interval 
+      
+      L_test <- sum(knn_test$type != test_model)/nrow(knn_test)
+      # Wilson score confidence interval
+      z = 1.96 # 0.95 conf int
+      interval <- z * sqrt( (L_test * (1 - L_test)) / nrow(knn_test))
+      L_test_upper <- L_test + interval 
+      L_test_lower <- L_test - interval 
+      
+      conf_matrix <- confusionMatrix(knn_test$type, test_model)
+      #message("N: ", n)
+      n_values <- c(n_values, n)
+      #message("K: ", k)
+      k_values <- c(k_values, k)
+      #message("MSE fit: ", L_fit)
+      knn_k_values <- c(knn_k_values, K)
+      #message("knn_k_values: ", K)
+      error_fit_values <- c(error_fit_values, L_fit)
+      error_fit_values_upper <- c(error_fit_values_upper, L_fit_upper)
+      error_fit_values_lower <- c(error_fit_values_lower, L_fit_lower)
+      #message(paste(c("Modelo ", current_variables), collapse=" "))
+      model_values <- c(model_values, paste(current_variables, collapse = " "))
+      #message("MSE testing: ", sum/nrow(pred))
+      error_prediction_values <- c(error_prediction_values, L_test)
+      error_prediction_values_upper <- c(error_prediction_values_upper, L_test_upper)
+      error_prediction_values_lower <- c(error_prediction_values_lower, L_test_lower)
+      #message(paste("Overall accuracy: ", conf_matrix$overall[[1]]))
+      accuracy_testing_values <- c(accuracy_testing_values, conf_matrix[["overall"]][["Accuracy"]])
+      accuracy_testing_values_upper <- c(accuracy_testing_values_upper, conf_matrix[["overall"]][["AccuracyUpper"]])
+      accuracy_testing_values_lower <- c(accuracy_testing_values_lower, conf_matrix[["overall"]][["AccuracyLower"]])
+      #message(Id: ", varsum)
+    }
+  }
+}
+
+results_knn <- data.frame(N = n_values, K = k_values, knn_K = knn_k_values, FIT_ERROR = error_fit_values,
+                          FIT_ERROR_UPPER = error_fit_values_upper, FIT_ERROR_LOWER = error_fit_values_lower,
+                          PREDICTION_ERROR = error_prediction_values,
+                          PREDICTION_ERROR_UPPER = error_prediction_values_upper,
+                          PREDICTION_ERROR_LOWER = error_prediction_values_lower,
+                          ACCURACY = accuracy_testing_values, ACCURACY_UPPER = accuracy_testing_values_upper,
+                          ACCURACY_LOWER = accuracy_testing_values_lower, stringsAsFactors = FALSE)
+
+FIT_ERROR_MEAN <- numeric()
+FIT_ERROR_UPPER_MEAN <- numeric()
+FIT_ERROR_LOWER_MEAN <- numeric()
+PREDICTION_ERROR_MEAN <- numeric()
+PREDICTION_ERROR_LOWER_MEAN <- numeric()
+PREDICTION_ERROR_UPPER_MEAN <- numeric()
+ACCURACY_MEAN <- numeric()
+ACCURACY_UPPER_MEAN <- numeric()
+ACCURACY_LOWER_MEAN <- numeric()
+K_VALUES <- knn_k
+for (i in knn_k) {
+  filtered_results <- dplyr::filter(results_knn, knn_K == i)
+  
+  FIT_ERROR_MEAN <- c(FIT_ERROR_MEAN, mean(filtered_results$FIT_ERROR))
+  FIT_ERROR_UPPER_MEAN <- c(FIT_ERROR_UPPER_MEAN, mean(filtered_results$FIT_ERROR_UPPER))
+  FIT_ERROR_LOWER_MEAN <- c(FIT_ERROR_LOWER_MEAN, mean(filtered_results$FIT_ERROR_LOWER))
+  
+  PREDICTION_ERROR_MEAN <- c(PREDICTION_ERROR_MEAN, mean(filtered_results$PREDICTION_ERROR))
+  PREDICTION_ERROR_UPPER_MEAN <- c(PREDICTION_ERROR_UPPER_MEAN, mean(filtered_results$PREDICTION_ERROR_UPPER))
+  PREDICTION_ERROR_LOWER_MEAN <- c(PREDICTION_ERROR_LOWER_MEAN, mean(filtered_results$PREDICTION_ERROR_LOWER))
+  
+  ACCURACY_MEAN <- c(ACCURACY_MEAN, mean(filtered_results$ACCURACY))
+  ACCURACY_UPPER_MEAN<- c(ACCURACY_UPPER_MEAN, mean(filtered_results$ACCURACY_UPPER))
+  ACCURACY_LOWER_MEAN<- c(ACCURACY_LOWER_MEAN, mean(filtered_results$ACCURACY_LOWER))
+  
+}
+
+average_models_knn <- data.frame(K = K_VALUES, FIT_ERROR_MEAN = FIT_ERROR_MEAN,
+                                 FIT_ERROR_UPPER_MEAN = FIT_ERROR_UPPER_MEAN, FIT_ERROR_LOWER_MEAN = FIT_ERROR_LOWER_MEAN,
+                                 PREDICTION_ERROR_MEAN = PREDICTION_ERROR_MEAN,
+                                 PREDICTION_ERROR_LOWER_MEAN = PREDICTION_ERROR_LOWER_MEAN,
+                                 PREDICTION_ERROR_UPPER_MEAN = PREDICTION_ERROR_UPPER_MEAN,
+                                 ACCURACY_MEAN = ACCURACY_MEAN, ACCURACY_UPPER_MEAN = ACCURACY_UPPER_MEAN,
+                                 ACCURACY_LOWER_MEAN = ACCURACY_LOWER_MEAN, stringsAsFactors = FALSE)
+
+#write.csv(average_models_knn, 'Documents/facultad/aprendizaje-estadistico/trabajo-final/knn-avg-models.csv')
+average_models_knn <- read.csv('Documents/facultad/aprendizaje-estadistico/trabajo-final/knn-avg-models.csv')
 
 
+x <- K_VALUES
+plot(x, average_models_knn$FIT_ERROR_MEAN, xlab = "Valor de K", ylab = "Fit error mean", main = "Fit error mean",
+     pch=16, cex=2, col='skyblue3', ylim = c(0,0.5))
 
+arrows(x0=x, y0 = average_models_knn$FIT_ERROR_LOWER_MEAN, 
+       x1=x, y1 = average_models_knn$FIT_ERROR_UPPER_MEAN,
+       code = 3, angle = 90, length = 0.1)
 
+plot(x, average_models_knn$PREDICTION_ERROR_MEAN, xlab = "Valor de K", ylab = "Prediction error mean",
+     main = "Prediction error mean",
+     pch=16, cex=2, col='orange', ylim = c(0,0.8))
 
+arrows(x0=x, y0 = average_models_knn$PREDICTION_ERROR_LOWER_MEAN, 
+       x1=x, y1 = average_models_knn$PREDICTION_ERROR_UPPER_MEAN,
+       code = 3, angle = 90, length = 0.1)
 
-# Quadratic discriminant analysis #
+plot(x, average_models_knn$ACCURACY_MEAN, main = "Accuracy mean", xlab = "Valor de K", ylab = "Accuracy mean",
+     pch=16, cex=2, col='red', ylim = c(0, 1))
+
+abline(h = average_models_knn$ACCURACY_MEAN[1], lty = 2)
+arrows(x0=x, y0 = average_models_knn$ACCURACY_LOWER_MEAN, 
+       x1=x, y1 = average_models_knn$ACCURACY_UPPER_MEAN,
+       code = 3, angle = 90, length = 0.1)
+
 # Decision trees #
+library(gbm)
+library(rpart.plot) 
+library(rpart)
+partition <- createDataPartition(y = pca_data$type, p = 0.7, list = FALSE)
+tree_train <- pca_data[partition, ]
+tree_test <- pca_data[-partition, ]
+set.seed(123)
+tree_model <- rpart(formula = type ~ .,
+                       data = tree_train,
+                       method = "class",  
+                       xval = 5 # 5-fold cross-validation 
+)
+rpart.plot(tree_model, yesno = TRUE)
+printcp(tree_model)
+plotcp(tree_model)
+
+pruned_tree_model <- prune(tree_model, 
+                  cp = tree_model$cptable[which.min(tree_model$cptable[, "xerror"]), "CP"])
+rpart.plot(pruned_tree_model, yesno = TRUE)
+
+tree_pred <- predict(pruned_tree_model, tree_test, type = "class")
+plot(tree_test$type, tree_pred, 
+     main = "Simple Classification: Predicted vs. Actual",
+     xlab = "Actual",
+     ylab = "Predicted")
+
+tree_conf_matrix <- confusionMatrix(data = tree_pred, 
+                                  reference = tree_test$type)
+tree_conf_matrix
+# Quadratic discriminant analysis #
 # Naive Bayes? #
 # NN? #
-# KNN? #
+
 # No parametrico? #
