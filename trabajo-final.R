@@ -1236,11 +1236,57 @@ plot(tree_test$type, tree_pred,
      xlab = "Actual",
      ylab = "Predicted")
 
+tree_test
 tree_conf_matrix <- confusionMatrix(data = tree_pred, 
                                   reference = tree_test$type)
 tree_conf_matrix
-# Quadratic discriminant analysis #
-# Naive Bayes? #
-# NN? #
 
-# No parametrico? #
+tree_train
+tree_train$type <- make.names(tree_train$type)
+random_forest <- train(type ~ ., 
+                data = tree_train, 
+                method = "ranger",  # for random forest
+                tuneLength = 5,  # choose up to 5 combinations of tuning parameters
+                metric = "ROC",  # evaluate hyperparamter combinations with ROC
+                trControl = trainControl(
+                  method = "cv",  # k-fold cross validation
+                  number = 5,  # 10 folds
+                  savePredictions = "final",       # save predictions for the optimal tuning parameter1
+                  classProbs = TRUE,  # return class probabilities in addition to predicted values
+                )
+)
+
+plot(random_forest)
+
+pred_rforest <- predict(random_forest, tree_test, type = "raw")
+plot(tree_test$type, pred_rforest, 
+     main = "Random Forest Classification: Predicted vs. Actual",
+     xlab = "Actual",
+     ylab = "Predicted")
+
+ref <- as.factor(make.names(tree_test$type))
+ref
+pred_rforest
+rforest_conf_matrix <- confusionMatrix(data = pred_rforest,
+                                       reference = ref)
+
+rforest_conf_matrix
+
+
+tree_gbm <- train(type ~ ., 
+                data = tree_train, 
+                method = "gbm",  # for bagged tree
+                tuneLength = 5,  # choose up to 5 combinations of tuning parameters
+                metric = "ROC",  # evaluate hyperparamter combinations with ROC
+                trControl = trainControl(
+                  method = "cv",  # k-fold cross validation
+                  number = 5,  # 10 folds
+                  savePredictions = "final",       # save predictions for the optimal tuning parameter1
+                  classProbs = TRUE,  # return class probabilities in addition to predicted values
+                )
+)
+
+plot(tree_gbm)
+gbm_pred <- predict(tree_gbm, tree_test, type = "raw")
+gbm_conf_matrix <- confusionMatrix(data = gbm_pred,
+                                       reference = ref)
