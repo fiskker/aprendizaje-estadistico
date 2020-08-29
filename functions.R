@@ -49,3 +49,70 @@ get_outlier_indexes <- function(data) {
   }
   outlier_indexes
 }
+
+normplot <- function(data, title, line_color) {
+  qqnorm(data, main = title, xlab = "Cuantiles normales", ylab = "Cuantiles muestrales")
+  qqline(data, col = line_color)
+}
+
+detailed_normplot <- function(data, title, line_color, bp_horizontal, hist_title, hist_xlab) {
+  normplot(data, title, line_color)
+  boxplot(data, horizontal = bp_horizontal)
+  hist(data, main = hist_title, xlab = hist_xlab, ylab = "Frecuencia")
+}
+
+detailed_normplot_cat <- function(data, category, title, line_color, bp_horizontal, hist_title, hist_xlab) {
+  normplot(data, title, line_color)
+  barplot(category$Freq, names.arg = category$categorical_data, main = hist_title, xlab = hist_xlab, ylab = "Frecuencia")
+}
+
+get_threshold <- function(expected, prediction) {
+  my_roc <- multiclass.roc(expected, prediction, levels=base::levels(as.factor(expected)))
+  #plot(my_roc)
+  coords(my_roc, "best", ret = "threshold", transpose = TRUE)
+}
+
+# Cost function
+cost_function <- function(fit_function, data, expected, use_roc = TRUE, response = TRUE) {
+  n <- length(expected)
+  if(response) {
+    fit <- predict(fit_function, data, type = "response")
+  } else {
+    fit <- predict(object = fit_function, newdata = data)  
+  }
+  
+  indicator_vector <- c(rep(1, n))
+  if(use_roc) {
+    if(response) {
+      threshold <- get_threshold(expected, fit)
+      H <- fit > threshold
+    } else {
+      threshold <- get_threshold(expected, fit$posterior[,2])
+      H <- fit$posterior[,2] > threshold
+    }
+  } else {
+    threshold <- 0.5
+    H <- fit$class
+  }
+  
+  (indicator_vector %*% (H != expected)) / n
+}
+
+sortby <- function(string, delimiter, ordering_vector) {
+  vector <- strsplit(string, delimiter)
+  vector <- vector[[1]]
+  if (length(vector) > 1) {
+    for (i in 1:length(vector)) {
+      for (j in 1:(length(vector) - 1)) {
+        left <- match(vector[j], ordering_vector)
+        right <- match(vector[j + 1], ordering_vector)
+        if (left > right) {
+          dummy <- vector[j]
+          vector[j] <- vector[j + 1]
+          vector[j+1] <- dummy
+        }
+      }
+    }
+  }
+  vector
+}

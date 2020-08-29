@@ -1,22 +1,3 @@
-# 2. El archivo Vidrios.txt se tiene datos de 9 variables predictivas para poder clasificar el tipo de vidrio,
-# el cual consta de 7 categorı́as. Las categorı́as 4 y 6 no son tenidas en cuenta por falta de datos.
-# Detalle:
-#  The study of classification of types of glass was motivated by criminological investigation. At the
-#scene of the crime, the glass left can be used as evidence...if it is correctly identified!
-#  Attribute Information:
-#  1. Id number: 1 to 214
-#2. RI: refractive index
-#3. Na: Sodium (unit measurement: weight percent in corresponding oxide, as are attributes 4-10)
-#4. Mg: Magnesium
-#5. Al: Aluminum
-#6. Si: Silicon
-#7. K: Potassium
-#8. Ca: Calcium
-#9. Ba: Barium
-#10. Fe: Iron
-#11. Type of glass: (class attribute)
-#9. Class Distribution: (out of 214 total instances)
-
 library(ggplot2)
 library(GGally)
 library(MASS)
@@ -203,34 +184,7 @@ ggplot(data = data.frame(prop_var_acum, pc = 1:9),
   labs(x = "Componente principal",
        y = "Prop. varianza explicada acumulada")
 
-## -- ##
-test_porcentajes <- function(varianzas, q, p0, n) {
-  r <- length(varianzas)
-  q_prop_var <- varianzas[1:q]
-  r_prop_var <- varianzas[(q+1):r]
-  a <- sum(q_prop_var)
-  b <- sum(r_prop_var)
-  a2<-sum(varianzas[1:q]^2)
-  b2<-sum(varianzas[(q+1):r]^2)
-  
-  tita <- (1 - p0)*a - p0*b 
-  sigma <- 2*(1 - p0)^2 * a2 + 2*p0^2 * b2
-  z <- (sqrt(n)*tita)/sqrt(sigma)
-  pv <- 2*(1 - pnorm(abs(z)))
-  return(c("p-valor: ", pv, "Z obs.: ", z, tita, sqrt(sigma)))
-  
-}
-varianzas <- pca$sdev^2
-varianzas
-test <- test_porcentajes(varianzas, 1, 0.95, nrow(X))
-test
-# Hay algun error con el test, ver si el tema de que la data sea en procentajes
-# afecta en algo...
-
-# todo: ICs para los lambdas, chequear igualdad de lambdas.
-
 # Multinomial logistic regression #
-
 
 # N-k fold cv
 N = 200
@@ -339,8 +293,6 @@ for (n in 1:N) {
         
         # Predict in test set
         pred <- predict(best_proposed_model, newdata = testing_set, "probs")
-        pred
-        nrow(pred)
         # Confusion table #
         pred_class <- predict(best_proposed_model, newdata = testing_set, "class")
         conf_matrix <- confusionMatrix(pred_class, testing_set$type)
@@ -373,10 +325,6 @@ for (n in 1:N) {
           error_prediction_upper <- error_prediction + interval 
           error_prediction_lower <- error_prediction - interval 
         }
-        
-        
-        
-        
         #message("N: ", n)
         n_values <- c(n_values, n)
         #message("K: ", k)
@@ -401,9 +349,7 @@ for (n in 1:N) {
         accuracy_testing_values_lower <- c(accuracy_testing_values_lower, conf_matrix[["overall"]][["AccuracyLower"]])
         #message(Id: ", varsum)
         model_id_values <- c(model_id_values, varsum)
-        
         proposed_models_list_mlr[[ as.character(varsum) ]] <- best_proposed_model
-        
         varsum <- varsum + 1
       }
     }
@@ -419,25 +365,6 @@ results_mlr <- data.frame(N = n_values, K = k_values, n_params = n_params, FIT_E
                       ACCURACY_LOWER = accuracy_testing_values_lower, models = model_values, 
                       model_id = model_id_values, stringsAsFactors = FALSE)
 
-sortby <- function(string, delimiter, ordering_vector) {
-  vector <- strsplit(string, delimiter)
-  vector <- vector[[1]]
-  if (length(vector) > 1) {
-    for (i in 1:length(vector)) {
-      for (j in 1:(length(vector) - 1)) {
-        left <- match(vector[j], ordering_vector)
-        right <- match(vector[j + 1], ordering_vector)
-        if (left > right) {
-          dummy <- vector[j]
-          vector[j] <- vector[j + 1]
-          vector[j+1] <- dummy
-        }
-      }
-    }
-  }
-  vector
-}
-
 two_group_list <- character()
 three_group_list <- character()
 four_group_list <- character()
@@ -451,32 +378,7 @@ vector <- c("PC1", "PC2", "PC3", "PC4", "PC5")
 subsets <- list()
 dep_variables <- names(kfold_X)
 models_list_mlr <- list()
-find_all_subsets <- function(N, n, vector, current_subset, collapse = "+") {
-  subset_list <- current_subset
-  if(n > 0) {
-    for (i in 1:length(vector)) {
-      subset_list <- c(subset_list, vector[i])
-      if (i < length(vector)) {
-        found_subset <- find_all_subsets(N, n-1, vector[(i+1):length(vector)], subset_list, collapse)
-        if(!is.null(found_subset)) {
-          group_list[[ as.character(N) ]]  <<- 
-            c(group_list[[ as.character(N) ]], paste(found_subset, collapse = collapse))
-        }
-        subset_list <- subset_list[-length(subset_list)]
-      } else {
-        if (length(subset_list) == N) {
-          found_subset <- subset_list
-          if(!is.null(found_subset)) {
-            group_list[[ as.character(N) ]]  <<- 
-              c(group_list[[ as.character(N) ]], paste(found_subset, collapse = collapse))
-          }
-        }
-      }
-    }
-  } else {
-    subset_list
-  }
-}
+
 for (n_param in 1:5) {
   model <- dplyr::filter(results_mlr, n_params == n_param)
   for (i in 1:nrow(model)) {
@@ -575,7 +477,7 @@ legend("bottomright", c("k = 5", "k = 10", "LOO"),
 
 #ggplot(data = average_models, aes(x=n_params, y=FIT_ERROR_MEAN)) + 
 #      geom_point(stat="identity")
-average_models_signif_mlr <- dplyr::filter(average_models, model_length > 500)
+average_models_signif_mlr <- dplyr::filter(average_models_mlr, model_length > 500)
 x <- 1:nrow(average_models_signif_mlr)
 
 plot(x, average_models_signif_mlr$FIT_ERROR_MEAN, xlab = "modelos", ylab = "Fit error mean", main = "Fit error mean",
@@ -648,56 +550,6 @@ data.frame(eff$model.matrix, eff$prob, eff$lower.prob, eff$upper.prob)
 # ------ # 
 
 # Linear discriminant analysis #
-normplot <- function(data, title, line_color) {
-  qqnorm(data, main = title, xlab = "Cuantiles normales", ylab = "Cuantiles muestrales")
-  qqline(data, col = line_color)
-}
-
-detailed_normplot <- function(data, title, line_color, bp_horizontal, hist_title, hist_xlab) {
-  normplot(data, title, line_color)
-  boxplot(data, horizontal = bp_horizontal)
-  hist(data, main = hist_title, xlab = hist_xlab, ylab = "Frecuencia")
-}
-
-detailed_normplot_cat <- function(data, category, title, line_color, bp_horizontal, hist_title, hist_xlab) {
-  normplot(data, title, line_color)
-  barplot(category$Freq, names.arg = category$categorical_data, main = hist_title, xlab = hist_xlab, ylab = "Frecuencia")
-}
-
-get_threshold <- function(expected, prediction) {
-  my_roc <- multiclass.roc(expected, prediction, levels=base::levels(as.factor(expected)))
-  #plot(my_roc)
-  coords(my_roc, "best", ret = "threshold", transpose = TRUE)
-}
-
-# Cost function
-cost_function <- function(fit_function, data, expected, use_roc = TRUE, response = TRUE) {
-  n <- length(expected)
-  if(response) {
-    fit <- predict(fit_function, data, type = "response")
-  } else {
-    fit <- predict(object = fit_function, newdata = data)  
-  }
-  
-  indicator_vector <- c(rep(1, n))
-  if(use_roc) {
-    if(response) {
-      threshold <- get_threshold(expected, fit)
-      H <- fit > threshold
-    } else {
-      threshold <- get_threshold(expected, fit$posterior[,2])
-      H <- fit$posterior[,2] > threshold
-    }
-  } else {
-    threshold <- 0.5
-    H <- fit$class
-  }
-  
-  (indicator_vector %*% (H != expected)) / n
-}
-
-
-## QQplots adult data ## 
 par(mfrow=c(1,1))
 
 type1_data <- pca_data[pca_data$type == 1,] 
@@ -759,8 +611,6 @@ normplot(type7_data$PC5, "PC5", "red")
 ## ------------------ ##
 
 ## all models ## 
-
-
 two_group_list <- character()
 three_group_list <- character()
 four_group_list <- character()
@@ -770,8 +620,6 @@ group_list[[ as.character(2) ]] <- two_group_list
 group_list[[ as.character(3) ]] <- three_group_list
 group_list[[ as.character(4) ]] <- four_group_list
 group_list[[ as.character(5) ]] <- five_group_list
-# terminar para permutar todos los pcx (hacer funcion recursiva)# 
-
 find_all_subsets(2, 2, vector, subsets)
 find_all_subsets(3, 3, vector, subsets)
 find_all_subsets(4, 4, vector, subsets)
@@ -908,25 +756,6 @@ results_lda <- data.frame(N = n_values, K = k_values, n_params = n_params, FIT_E
                       ACCURACY_LOWER = accuracy_testing_values_lower, models = model_values, 
                       model_id = model_id_values, stringsAsFactors = FALSE)
 
-sortby <- function(string, delimiter, ordering_vector) {
-  vector <- strsplit(string, delimiter)
-  vector <- vector[[1]]
-  if (length(vector) > 1) {
-    for (i in 1:length(vector)) {
-      for (j in 1:(length(vector) - 1)) {
-        left <- match(vector[j], ordering_vector)
-        right <- match(vector[j + 1], ordering_vector)
-        if (left > right) {
-          dummy <- vector[j]
-          vector[j] <- vector[j + 1]
-          vector[j+1] <- dummy
-        }
-      }
-    }
-  }
-  vector
-}
-
 dep_variables <- names(kfold_X)
 models_list_lda <- list()
 for (n_param in 2:5) {
@@ -1006,10 +835,10 @@ merge(top_fit_lda, top_accuracy_lda)
 merge_df <- rbind(top_fit_lda, top_accuracy_lda, top_accuracy_lda)
 merge_df <- unique(merge_df)
 
-merge_df <- merge_df[with(merge_df, order(n_params)),]
+average_models_signif_lda <- merge_df[with(merge_df, order(n_params)),]
 
 x <- 1:nrow(merge_df)
-x
+
 plot(x, merge_df$FIT_ERROR_MEAN, xlab = "Modelos", ylab = "Fit error mean", main = "Fit error mean",
      pch=16, cex=2, col='skyblue3', ylim = c(0,0.5))
 
@@ -1245,14 +1074,14 @@ tree_train
 tree_train$type <- make.names(tree_train$type)
 random_forest <- train(type ~ ., 
                 data = tree_train, 
-                method = "ranger",  # for random forest
-                tuneLength = 5,  # choose up to 5 combinations of tuning parameters
-                metric = "ROC",  # evaluate hyperparamter combinations with ROC
+                method = "ranger", 
+                tuneLength = 5,  
+                metric = "ROC",  
                 trControl = trainControl(
-                  method = "cv",  # k-fold cross validation
-                  number = 5,  # 10 folds
-                  savePredictions = "final",       # save predictions for the optimal tuning parameter1
-                  classProbs = TRUE,  # return class probabilities in addition to predicted values
+                  method = "cv",  
+                  number = 5,  
+                  savePredictions = "final",      
+                  classProbs = TRUE,  
                 )
 )
 
@@ -1275,14 +1104,14 @@ rforest_conf_matrix
 
 tree_gbm <- train(type ~ ., 
                 data = tree_train, 
-                method = "gbm",  # for bagged tree
-                tuneLength = 5,  # choose up to 5 combinations of tuning parameters
-                metric = "ROC",  # evaluate hyperparamter combinations with ROC
+                method = "gbm",  
+                tuneLength = 5,  
+                metric = "ROC",  
                 trControl = trainControl(
-                  method = "cv",  # k-fold cross validation
-                  number = 5,  # 10 folds
-                  savePredictions = "final",       # save predictions for the optimal tuning parameter1
-                  classProbs = TRUE,  # return class probabilities in addition to predicted values
+                  method = "cv",  
+                  number = 5,  
+                  savePredictions = "final",       
+                  classProbs = TRUE,  
                 )
 )
 
@@ -1290,3 +1119,50 @@ plot(tree_gbm)
 gbm_pred <- predict(tree_gbm, tree_test, type = "raw")
 gbm_conf_matrix <- confusionMatrix(data = gbm_pred,
                                        reference = ref)
+gbm_conf_matrix 
+
+rforest_conf_matrix
+
+rf_results <- c(rforest_conf_matrix[["overall"]][["Accuracy"]],
+                   rforest_conf_matrix[["overall"]][["AccuracyUpper"]],
+                   rforest_conf_matrix[["overall"]][["AccuracyLower"]])
+gbm_results <- c(gbm_conf_matrix[["overall"]][["Accuracy"]],
+                    gbm_conf_matrix[["overall"]][["AccuracyUpper"]],
+                    gbm_conf_matrix[["overall"]][["AccuracyLower"]])
+gbm_results <- c(0.6897,
+                 0.8046,
+                 0.5546)
+
+tree_results <- c(0.6552,
+                        0.7751,
+                        0.5188)
+
+tree_results <- c(tree_conf_matrix[["overall"]][["Accuracy"]],
+                  tree_conf_matrix[["overall"]][["AccuracyUpper"]],
+                  tree_conf_matrix[["overall"]][["AccuracyLower"]])
+mlr_results <- c(max(average_models_signif_mlr$ACCURACY_MEAN),
+                       max(average_models_signif_mlr$ACCURACY_UPPER_MEAN),
+                       max(average_models_signif_mlr$ACCURACY_LOWER_MEAN))
+lda_results <- c(max(average_models_signif_lda$ACCURACY_MEAN),
+                       max(average_models_signif_lda$ACCURACY_UPPER_MEAN),
+                       max(average_models_signif_lda$ACCURACY_LOWER_MEAN))
+knn_results <- c(max(average_models_knn$ACCURACY_MEAN),
+                       max(average_models_knn$ACCURACY_UPPER_MEAN),
+                       max(average_models_knn$ACCURACY_LOWER_MEAN))
+
+end_results_table <- data.frame(RF = I(rf_results), GBM = I(gbm_results), TREE = I(tree_results),
+                                MLR = I(mlr_results), LDA = I(lda_results), KNN = I(knn_results))
+
+col_names <- names(end_results_table)
+col_names
+end_results_table[1,]
+x <- 1:length(col_names)
+plot(x, end_results_table[1,], xaxt = "n", xlab = "Métodos",
+     ylab = "Accuracy", col = 'skyblue3', pch = 16, ylim=c(min(end_results_table[3,]),
+                               max(end_results_table[2,])))
+axis(1, at=x, labels=col_names)
+end_results_table[3,]
+red2 <- adjustcolor("red", alpha.f=0.4)
+arrows(x0=x, y0 = as.numeric(end_results_table[3,]), 
+       x1=x, y1 = as.numeric(end_results_table[2,]),
+       code = 3, angle = 90, length = 0.1, col = red2)
