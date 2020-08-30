@@ -508,44 +508,44 @@ plot(x, average_models_signif_mlr$AIC, main = "AIC mean", xlab = "modelos", ylab
 # Ver effect (variacion de variables dependientes, como modifican la probabilidad)
 # Para correr una vez y sacar los datos, los ids del proposed_models_list dependen
 # de cada corrida del modelo
-model_3 <- proposed_models_list_mlr[[3]]
-summary(model_3)
-tidy(model_3, exponentiate = TRUE, conf.int = TRUE)
-eff <- Effect("PC1", model_3)
-eff <- Effect("PC2", model_3)
-eff <- Effect("PC4", model_3)
-data.frame(eff$model.matrix, eff$prob, eff$lower.prob, eff$upper.prob)
-plot(eff)
+# model_3 <- proposed_models_list_mlr[[3]]
+# summary(model_3)
+# tidy(model_3, exponentiate = TRUE, conf.int = TRUE)
+# eff <- Effect("PC1", model_3)
+# eff <- Effect("PC2", model_3)
+# eff <- Effect("PC4", model_3)
+# data.frame(eff$model.matrix, eff$prob, eff$lower.prob, eff$upper.prob)
+# plot(eff)
 #plot(allEffects(model_3))
 
-model_4 <- proposed_models_list_mlr[[4]]
-summary(model_4)
-tidy(model_4, exponentiate = TRUE, conf.int = TRUE)
-eff <- Effect("PC1", model_4)
-plot(eff)
-eff <- Effect("PC2", model_4)
-plot(eff)
-eff <- Effect("PC3", model_4)
-plot(eff)
-eff <- Effect("PC4", model_4)
-plot(eff)
-data.frame(eff$model.matrix, eff$prob, eff$lower.prob, eff$upper.prob)
+# model_4 <- proposed_models_list_mlr[[4]]
+# summary(model_4)
+# tidy(model_4, exponentiate = TRUE, conf.int = TRUE)
+# eff <- Effect("PC1", model_4)
+# plot(eff)
+# eff <- Effect("PC2", model_4)
+# plot(eff)
+# eff <- Effect("PC3", model_4)
+# plot(eff)
+# eff <- Effect("PC4", model_4)
+# plot(eff)
+# data.frame(eff$model.matrix, eff$prob, eff$lower.prob, eff$upper.prob)
 
-model_5 <- proposed_models_list_mlr[[1108]]
-model_5
-summary(model_5)
-print(tidy(model_5, exponentiate = TRUE, conf.int = TRUE), n = 100)
-eff <- Effect("PC1", model_5)
-plot(eff)
-eff <- Effect("PC2", model_5)
-plot(eff)
-eff <- Effect("PC3", model_5)
-plot(eff)
-eff <- Effect("PC4", model_5)
-plot(eff)
-eff <- Effect("PC5", model_5)
-plot(eff)
-data.frame(eff$model.matrix, eff$prob, eff$lower.prob, eff$upper.prob)
+# model_5 <- proposed_models_list_mlr[[1108]]
+# model_5
+# summary(model_5)
+# print(tidy(model_5, exponentiate = TRUE, conf.int = TRUE), n = 100)
+# eff <- Effect("PC1", model_5)
+# plot(eff)
+# eff <- Effect("PC2", model_5)
+# plot(eff)
+# eff <- Effect("PC3", model_5)
+# plot(eff)
+# eff <- Effect("PC4", model_5)
+# plot(eff)
+# eff <- Effect("PC5", model_5)
+# plot(eff)
+# data.frame(eff$model.matrix, eff$prob, eff$lower.prob, eff$upper.prob)
 
 # ------ # 
 
@@ -1129,13 +1129,6 @@ rf_results <- c(rforest_conf_matrix[["overall"]][["Accuracy"]],
 gbm_results <- c(gbm_conf_matrix[["overall"]][["Accuracy"]],
                     gbm_conf_matrix[["overall"]][["AccuracyUpper"]],
                     gbm_conf_matrix[["overall"]][["AccuracyLower"]])
-gbm_results <- c(0.6897,
-                 0.8046,
-                 0.5546)
-
-tree_results <- c(0.6552,
-                        0.7751,
-                        0.5188)
 
 tree_results <- c(tree_conf_matrix[["overall"]][["Accuracy"]],
                   tree_conf_matrix[["overall"]][["AccuracyUpper"]],
